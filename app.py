@@ -18,7 +18,7 @@ generation_config = {
 base_instruction = "Your helpful assistant for Archibus. Your name is Archibus AI. Always reply in Japanese."
 
 # Load custom instruction from file
-with open("Data.txt", "r") as file:
+with open("data.txt", "r") as file:
     custom_instruction = file.read().strip()
 
 # Combine static system instruction with custom instruction
