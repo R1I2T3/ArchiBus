@@ -1,11 +1,11 @@
 import streamlit as st
 import google.generativeai as genai
 
-print()
 
-# Configure the Gemini model
-genai.configure(api_key=st.secrets['default']['API_KEY'])
+api_key = st.secrets['default']['API_KEY']
+genai.configure(api_key=api_key)
 
+# Define generation parameters
 generation_config = {
     "temperature": 1,
     "top_p": 0.95,
@@ -14,64 +14,76 @@ generation_config = {
     "response_mime_type": "text/plain",
 }
 
-# Read system instruction from data.txt
-with open("data.txt", "r") as file:
+# Base system instruction
+base_instruction = "Your helpful assistant for Archibus. Your name is Archibus AI. Always reply in Japanese."
+
+# Load custom instruction from file
+with open("Data.txt", "r") as file:
     custom_instruction = file.read().strip()
 
-# Configure the Gemini model with dynamic system instruction
+# Combine static system instruction with custom instruction
+full_instruction = f"{base_instruction}\n\n{custom_instruction}"
+
+# Store in session state (without displaying it)
+if "custom_instruction" not in st.session_state:
+    st.session_state.custom_instruction = full_instruction
+
+# Create the model instance
 model = genai.GenerativeModel(
     model_name="gemini-2.0-flash",
     generation_config=generation_config,
-    system_instruction=f"""Your helpful assistant for Archibus. Your name is Archibus AI , Always reply in Japanese."""
+    system_instruction=st.session_state.custom_instruction,  # Pass combined instruction
 )
 
+# Initialize chat history in session state
+if "messages" not in st.session_state:
+    st.session_state.messages = []
 
-
-chat_session = model.start_chat(history=[
-    {"role": "user", "parts": [custom_instruction]}
-])
-
-
-def init_chat_history():
-    if "messages" not in st.session_state:
-        st.session_state.messages = []
-
+# Display chat history
 def display_chat_history():
     for message in st.session_state.messages:
         with st.chat_message(message["role"]):
             st.markdown(message["content"])
 
+# Handle user input and get assistant response
 def handle_user_input(prompt: str):
     # Add user message to chat history
     st.session_state.messages.append({"role": "user", "content": prompt})
     with st.chat_message("user"):
         st.markdown(prompt)
 
-    # Generate response using the Gemini model
+    # Generate assistant response
     with st.chat_message("assistant"):
         with st.spinner("Thinking..."):
-            # Sending the message to Gemini Pro and receiving the response
-            response = chat_session.send_message(prompt)
-            st.markdown(response.text)
-            st.session_state.messages.append({"role": "assistant", "content": response.text})
+            conversation_history = [
+                {"role": message["role"], "parts": [message["content"]]}
+                for message in st.session_state.messages
+            ]
 
+            try:
+                # Start chat with system instruction (without displaying it)
+                chat_session = model.start_chat(history=conversation_history)
+                response = chat_session.send_message(prompt)
 
+                # Display and store assistant response
+                st.markdown(response.text)
+                st.session_state.messages.append({"role": "assistant", "content": response.text})
+
+            except Exception as e:
+                st.error(f"An error occurred: {e}")
+                st.session_state.messages.append({"role": "assistant", "content": "Sorry, an error occurred."})
+
+# Main function for Streamlit app
 def main():
-    # Set up Streamlit page
     st.set_page_config(page_title="Archibus AI", layout="wide")
     st.title("Archibus AI")
+    st.markdown("Welcome to Archibus AI")
 
-    # Add welcome message
-    st.markdown("Archibusへようこそ")
-
-    # Initialize chat history
-    init_chat_history()
-
-    # Display chat interface
+    # Display chat history
     display_chat_history()
 
-    # Chat input
-    if prompt := st.chat_input("Ask me about anything..."):
+    # Handle user input
+    if prompt := st.chat_input("Ask me anything..."):
         handle_user_input(prompt)
 
 if __name__ == "__main__":
